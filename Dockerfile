@@ -1,6 +1,6 @@
-FROM debian:buster
+FROM ubuntu:22.04
 
-LABEL maintainer="Colin Wilson colin@wyveo.com"
+LABEL maintainer="Zuhdan Ubay - ubayresearch@gmail.com"
 
 # Let the container know that there is no tty
 ENV DEBIAN_FRONTEND noninteractive
@@ -14,35 +14,60 @@ RUN buildDeps='curl gcc make autoconf libc-dev zlib1g-dev pkg-config' \
     && set -x \
     && apt-get update \
     && apt-get install --no-install-recommends $buildDeps --no-install-suggests -q -y gnupg2 dirmngr wget apt-transport-https lsb-release ca-certificates \
-    && \
-    NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
-	  found=''; \
-	  for server in \
-		  ha.pool.sks-keyservers.net \
-		  hkp://keyserver.ubuntu.com:80 \
-		  hkp://p80.pool.sks-keyservers.net:80 \
-		  pgp.mit.edu \
-	  ; do \
-		  echo "Fetching GPG key $NGINX_GPGKEY from $server"; \
-		  apt-key adv --batch --keyserver "$server" --keyserver-options timeout=10 --recv-keys "$NGINX_GPGKEY" && found=yes && break; \
-	  done; \
-    test -z "$found" && echo >&2 "error: failed to fetch GPG key $NGINX_GPGKEY" && exit 1; \
-    echo "deb http://nginx.org/packages/mainline/debian/ buster nginx" >> /etc/apt/sources.list \
-    && wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg \
-    && echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list \
-    && apt-get update \
     && apt-get install --no-install-recommends --no-install-suggests -q -y \
             apt-utils \
             nano \
             zip \
             unzip \
+            python2.7 \
             python-pip \
             python-setuptools \
             git \
             libmemcached-dev \
-            libmemcached11 \
             libmagickwand-dev \
-            nginx=${NGINX_VERSION} \
+            net-tools \
+            telnet \
+            curl \
+            rsync \
+            libmcrypt-dev \
+            openssh-client \
+            vim \
+            dtach \
+            curl
+
+RUN apt-get update \
+    && apt-get install openssl libssl-dev -y
+
+# Download Nginx source code (replace with correct URL)
+RUN curl -LO https://nginx.org/download/nginx-1.21.6.tar.gz \
+    && tar -zxvf nginx-1.21.6.tar.gz \
+    && cd nginx-1.21.6 \
+    && ./configure \
+      --prefix=/etc/nginx \
+      --sbin-path=/usr/sbin/nginx \
+      --modules-path=/usr/lib/nginx/modules \
+      --conf-path=/etc/nginx/nginx.conf \
+      --error-log-path=/var/log/nginx/error.log \
+      --http-log-path=/var/log/nginx/access.log \
+      --pid-path=/var/run/nginx.pid \
+      --lock-path=/var/run/nginx.lock \
+      --user=nginx \
+      --group=nginx \
+      --with-http_ssl_module \
+      --with-http_v2_module \
+      --with-threads \
+      --with-file-aio \
+      --with-http_gzip_static_module \
+      --with-http_realip_module \
+    && make \
+    && make install
+
+RUN apt-get update \
+    && apt-get install software-properties-common -y \
+    && add-apt-repository ppa:ondrej/php \
+    && apt-get update \
+    && apt-get install --no-install-recommends --no-install-suggests -q -y \
+            php7.4-imap \
             php7.4-fpm \
             php7.4-cli \
             php7.4-bcmath \
@@ -62,10 +87,17 @@ RUN buildDeps='curl gcc make autoconf libc-dev zlib1g-dev pkg-config' \
             php7.4-xml \
             php-pear \
     && pecl -d php_suffix=7.4 install -o -f redis memcached \
-    && mkdir -p /run/php \
-    && pip install wheel \
-    && pip install supervisor supervisor-stdout \
-    && echo "#!/bin/sh\nexit 0" > /usr/sbin/policy-rc.d \
+    && mkdir -p /run/php
+
+# Install pip for Python 2.7 explicitly
+RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py \
+    && python2.7 get-pip.py \
+    && rm get-pip.py
+RUN pip install wheel
+RUN pip install supervisor supervisor-stdout
+
+# Configure Supervisord & PHP
+RUN echo "#!/bin/sh\nexit 0" > /usr/sbin/policy-rc.d \
     && rm -rf /etc/nginx/conf.d/default.conf \
     && sed -i -e "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/g" ${php_conf} \
     && sed -i -e "s/memory_limit\s*=\s*.*/memory_limit = 256M/g" ${php_conf} \
@@ -99,6 +131,12 @@ RUN buildDeps='curl gcc make autoconf libc-dev zlib1g-dev pkg-config' \
     && apt-get clean \
     && apt-get autoremove \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Python 2 as the default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python2.7 1
+
+RUN useradd -s /sbin/nologin -r nginx
+RUN chown -R nginx:nginx /var/log/nginx
 
 # Supervisor config
 COPY ./supervisord.conf /etc/supervisord.conf
