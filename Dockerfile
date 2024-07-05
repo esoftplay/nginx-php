@@ -143,6 +143,7 @@ COPY ./supervisord.conf /etc/supervisord.conf
 
 # Override nginx's default config
 COPY ./default.conf /etc/nginx/conf.d/default.conf
+COPY ./nginx.conf /etc/nginx/nginx.conf
 
 # Override default nginx welcome page
 COPY html /usr/share/nginx/html
