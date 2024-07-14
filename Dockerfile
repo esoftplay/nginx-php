@@ -1,7 +1,5 @@
 FROM ubuntu:22.04
 
-LABEL maintainer="Zuhdan Ubay - ubayresearch@gmail.com"
-
 # Let the container know that there is no tty
 ENV DEBIAN_FRONTEND noninteractive
 ENV NGINX_VERSION 1.21.6-1~buster
