@@ -1,6 +1,9 @@
 name: Publish PHP 7.4 image to Docker Hub
 on:
   push:
+    branches: [ php74 ]
+  pull_request:
+    branches: [ php74 ]
 jobs:
   build:
     runs-on: ubuntu-20.04
