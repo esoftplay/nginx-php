@@ -138,7 +138,7 @@ RUN printf "\n" | pecl install mcrypt \
     && ln -s /etc/php/7.4/mods-available/mcrypt.ini /etc/php/7.4/cli/conf.d/20-mcrypt.ini
 
 # ADD ioncube php module
-RUN x=$( uname -m ) && wget -O ioncube.tar.gz 'https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_'$x'.tar.gz' \
+RUN wget -O ioncube.tar.gz https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_$( uname -m ).tar.gz \
     && tar -xzf ioncube.tar.gz \
     && cp ioncube/ioncube_loader_lin_7.4.so /usr/lib/php/20190902/ioncube.so \
     && rm -rf ioncube.tar.gz ioncube \
