@@ -31,6 +31,7 @@ RUN buildDeps='curl gcc make autoconf libc-dev zlib1g-dev pkg-config' \
             openssh-client \
             vim \
             dtach \
+            cron \
             curl
 
 RUN apt-get update \
@@ -130,11 +131,47 @@ RUN echo "#!/bin/sh\nexit 0" > /usr/sbin/policy-rc.d \
     && apt-get autoremove \
     && rm -rf /var/lib/apt/lists/*
 
+# ADD mcrypt php module
+RUN printf "\n" | pecl install mcrypt \
+    && echo "extension = mcrypt.so" > /etc/php/7.4/mods-available/mcrypt.ini \
+    && ln -s /etc/php/7.4/mods-available/mcrypt.ini /etc/php/7.4/fpm/conf.d/20-mcrypt.ini \
+    && ln -s /etc/php/7.4/mods-available/mcrypt.ini /etc/php/7.4/cli/conf.d/20-mcrypt.ini
+
+# ADD ioncube php module
+RUN x=$( uname -m ) && wget -O ioncube.tar.gz 'https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_'$x'.tar.gz' \
+    && tar -xzf ioncube.tar.gz \
+    && cp ioncube/ioncube_loader_lin_7.4.so /usr/lib/php/20190902/ioncube.so \
+    && rm -rf ioncube.tar.gz ioncube \
+    && echo "zend_extension = ioncube.so" > /etc/php/7.4/mods-available/ioncube.ini \
+    && ln -s /etc/php/7.4/mods-available/ioncube.ini /etc/php/7.4/fpm/conf.d/10-ioncube.ini \
+    && ln -s /etc/php/7.4/mods-available/ioncube.ini /etc/php/7.4/cli/conf.d/10-ioncube.ini
+
+# Customize PHP.ini
+RUN touch /etc/auto_prepend_file.php
+RUN cp /etc/php/7.4/fpm/php.ini /etc/php/7.4/fpm/php.ini.orig
+RUN cat /etc/php/7.4/fpm/php.ini.orig | sed \
+     -e 's/short_open_tag = Off/short_open_tag = On/g' \
+     -e 's/; max_input_vars = 1000/max_input_vars = 1000000/g' \
+     -e 's/default_socket_timeout = 60/; default_socket_timeout = 60/g' \
+     -e 's/auto_prepend_file =/auto_prepend_file = \/etc\/auto_prepend_file.php/g' \
+     -e 's/html_errors = On/html_errors = Off/g' > /etc/php/7.4/fpm/php.ini
+
+RUN cp /etc/php/7.4/cli/php.ini /etc/php/7.4/cli/php.ini.orig
+RUN cat /etc/php/7.4/cli/php.ini.orig | sed \
+     -e 's/short_open_tag = Off/short_open_tag = On/g' \
+     -e 's/; max_input_vars = 1000/max_input_vars = 1000000/g' \
+     -e 's/default_socket_timeout = 60/; default_socket_timeout = 60/g' \
+     -e 's/auto_prepend_file =/auto_prepend_file = \/etc\/auto_prepend_file.php/g' \
+     -e 's/html_errors = On/html_errors = Off/g' > /etc/php/7.4/cli/php.ini
+
 # Set Python 2 as the default
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python2.7 1
 
 RUN useradd -s /sbin/nologin -r nginx
 RUN chown -R nginx:nginx /var/log/nginx
+
+# Add esoftplay tools
+RUN cd /opt && git clone https://github.com/esoftplay/tools.git
 
 # Supervisor config
 COPY ./supervisord.conf /etc/supervisord.conf
